@@ -77,11 +77,17 @@ def create_net():
         nn.Flatten(),
         nn.Linear(784, 512),
         nn.ReLU(),
+        nn.Dropout(p=0.2),
         nn.Linear(512, 256),
         nn.ReLU(),
+        nn.Dropout(p=0.2),
         nn.Linear(256, 128),
         nn.ReLU(),
-        nn.Linear(128, 10),
+        nn.Dropout(p=0.05),
+        nn.Linear(128, 64),
+        nn.ReLU(),
+        nn.Dropout(p=0.05),
+        nn.Linear(64, 10),
     )
     net.apply(init_net)
     return net
@@ -232,10 +238,10 @@ def decide_gpu_or_cpu():
 
 device = decide_gpu_or_cpu()
 net = create_net().to(device)
-updater = torch.optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+updater = torch.optim.SGD(net.parameters(), lr=0.15, momentum=0.9, weight_decay=1e-4)
 train_iter, test_iter = load_data_fashion_mnist(batch_size=256)
 loss = create_cross_entropy_loss()
-epochs = 10
+epochs = 30
 
 with Timer("Training"):
     # train and return record
