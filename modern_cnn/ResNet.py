@@ -1,0 +1,277 @@
+import torch
+from torch import nn
+from d2l import torch as d2l
+
+from torch.utils import data
+
+import torchvision
+from torchvision import transforms
+
+import matplotlib.pyplot as plt
+
+import time
+
+
+class Timer:
+
+    def __init__(self, name=None):
+        self.name = name
+        self.start_time = None
+        self.end_time = None
+        self.elapsed = None
+
+    def __enter__(self):
+        self.start_time = time.time()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.end_time = time.time()
+        self.elapsed = self.end_time - self.start_time
+        if self.name:
+            print(f"[{self.name}] elapsed time: {self.elapsed:.2f} seconds")
+        else:
+            print(f"Elapsed time: {self.elapsed:.2f} seconds")
+
+
+def init_net(m):
+    if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+        nn.init.xavier_uniform_(m.weight)
+        if m.bias is not None:
+            nn.init.zeros_(m.bias)
+
+
+class Residual(nn.Module):
+    def __init__(self, input_channels, output_channels, use_1x1conv=False, strides=1):
+        super().__init__()
+        # Y part
+        self.conv1 = nn.Conv2d(
+            in_channels=input_channels,
+            out_channels=output_channels,
+            kernel_size=3,
+            padding=1,
+            stride=strides,
+        )
+        self.conv2 = nn.Conv2d(
+            in_channels=output_channels,
+            out_channels=output_channels,
+            kernel_size=3,
+            padding=1,
+        )
+        # change the size of X 
+        if use_1x1conv:
+            self.conv3 = nn.Conv2d(
+                input_channels, output_channels, kernel_size=1, stride=strides
+            )
+        else:
+            self.conv3 = None
+        self.bn1 = nn.BatchNorm2d(output_channels)
+        self.bn2 = nn.BatchNorm2d(output_channels)
+
+    def forward(self, X):
+        Y = torch.nn.functional.relu(self.bn1(self.conv1(X)))
+        Y = self.bn2(self.conv2(Y))
+        if self.conv3:
+            X = self.conv3(X)
+        Y += X
+        return torch.nn.functional.relu(Y)
+
+def resnet_block(input_channels, output_channels, num_residuals,
+                 first_block=False):
+    blk = []
+    for i in range(num_residuals):
+        if i == 0 and not first_block:
+            blk.append(Residual(input_channels, output_channels,
+                                use_1x1conv=True, strides=2))
+        else:
+            blk.append(Residual(output_channels, output_channels))
+    return blk
+
+def create_net():
+    # take 1 * 224 * 224 as an example
+    # b1: Conv -> 1 64 112 112 -> MaxP -> 1 64 56 56
+    b1 = nn.Sequential(nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3),
+                   nn.BatchNorm2d(64), nn.ReLU(),
+                   nn.MaxPool2d(kernel_size=3, stride=2, padding=1))
+    # b2: Conv -> 1 64 56 56 -> Conv -> 1 64 56 56
+    b2 = nn.Sequential(*resnet_block(64, 64, 2, first_block=True))
+    # b3: Conv -> 1 128 28 28 -> Conv -> 1 128 28 28
+    b3 = nn.Sequential(*resnet_block(64, 128, 2))
+    # b4: 1 256 14 14
+    b4 = nn.Sequential(*resnet_block(128, 256, 2))
+    # b5: 1 512 7 7
+    b5 = nn.Sequential(*resnet_block(256, 512, 2))
+    # AAP -> 512 1 1 -> Flatten -> 512 -> Linear -> 10
+    net = nn.Sequential(b1, b2, b3, b4, b5,
+                    nn.AdaptiveAvgPool2d((1,1)),
+                    nn.Flatten(), nn.Linear(512, 10))
+    return net
+
+
+def show_shape():
+    X = torch.rand(size=(1, 1, 224, 224), dtype=torch.float32)
+    net = create_net()
+    for i, layer in enumerate(net):
+        X = layer(X)
+        print(f"{i}: {layer.__class__.__name__}\toutput shape: {X.shape}")
+
+
+def train_epoch(net, updater, loss, train_iter, device):
+    total_loss = 0.0
+    total_samples = 0
+    total_correct = 0
+
+    for X, y in train_iter:
+        X, y = X.to(device), y.to(device)
+
+        o_hat = net(X)
+        mean_loss = loss(o_hat, y)
+        updater.zero_grad()
+        mean_loss.backward()
+        updater.step()
+
+        # calculate data
+        total_samples += y.size(0)
+        total_loss += y.size(0) * mean_loss.item()
+        total_correct += (o_hat.argmax(dim=1) == y).sum().item()
+
+    return total_loss / total_samples, total_correct / total_samples
+
+
+def evaluate_by_test(net, loss, test_iter, device):
+    with torch.no_grad():
+        total_loss = 0.0
+        total_correct = 0
+        total_samples = 0
+        for X, y in test_iter:
+            X, y = X.to(device), y.to(device)
+
+            o_hat = net(X)
+            l = loss(o_hat, y)
+
+            # calculate data
+            total_loss += l.item() * y.size(0)
+            total_correct += (o_hat.argmax(dim=1) == y).sum().item()
+            total_samples += y.size(0)
+
+        return total_loss / total_samples, total_correct / total_samples
+
+
+def train_whole(epochs, net, updater, loss, train_iter, test_iter, device):
+    train_losses, train_accs = [], []
+    test_losses, test_accs = [], []
+
+    for i in range(epochs):
+        train_loss, train_accuracy = train_epoch(net, updater, loss, train_iter, device)
+        test_loss, test_accuracy = evaluate_by_test(net, loss, test_iter, device)
+
+        # record data
+        train_losses.append(train_loss)
+        train_accs.append(train_accuracy)
+        test_losses.append(test_loss)
+        test_accs.append(test_accuracy)
+
+        print(f"epoch {i+1}")
+        print(f"train_loss: {train_loss:.4f}, train_accuracy: {train_accuracy:.4f}")
+        print(f"test_loss: {test_loss:.4f}, test_accuracy: {test_accuracy:.4f}")
+
+    return train_losses, train_accs, test_losses, test_accs
+
+
+# define constant
+FIGSIZE = (8, 5)
+
+LOSS_COLOR_TRAIN = "tab:red"
+LOSS_COLOR_TEST = "tab:orange"
+ACC_COLOR_TRAIN = "tab:blue"
+ACC_COLOR_TEST = "tab:cyan"
+
+MARKER_LOSS = "o"
+MARKER_ACC = "x"
+
+TITLE = "Training and Testing Loss & Accuracy"
+X_LABEL = "Epoch"
+LOSS_Y_LABEL = "Loss"
+ACC_Y_LABEL = "Accuracy"
+LEGEND_LOC = "center right"
+
+
+def plot_training_curves_single_figure(
+    train_losses, train_accs, test_losses, test_accs
+):
+    epochs = range(1, len(train_losses) + 1)
+
+    _, ax1 = plt.subplots(figsize=FIGSIZE)
+
+    # left y axis：Loss
+    ax1.set_xlabel(X_LABEL)
+    ax1.set_ylabel(LOSS_Y_LABEL, color=LOSS_COLOR_TRAIN)
+    ax1.plot(
+        epochs,
+        train_losses,
+        label="Train Loss",
+        color=LOSS_COLOR_TRAIN,
+        marker=MARKER_LOSS,
+    )
+    ax1.plot(
+        epochs,
+        test_losses,
+        label="Test Loss",
+        color=LOSS_COLOR_TEST,
+        marker=MARKER_LOSS,
+    )
+    ax1.tick_params(axis="y", labelcolor=LOSS_COLOR_TRAIN)
+    ax1.grid(True)
+
+    # right y axis：Accuracy
+    # share x axis
+    ax2 = ax1.twinx()
+    ax2.set_ylabel(ACC_Y_LABEL, color=ACC_COLOR_TRAIN)
+    ax2.plot(
+        epochs, train_accs, label="Train Acc", color=ACC_COLOR_TRAIN, marker=MARKER_ACC
+    )
+    ax2.plot(
+        epochs, test_accs, label="Test Acc", color=ACC_COLOR_TEST, marker=MARKER_ACC
+    )
+    ax2.tick_params(axis="y", labelcolor=ACC_COLOR_TRAIN)
+
+    # compose the legends
+    lines_1, labels_1 = ax1.get_legend_handles_labels()
+    lines_2, labels_2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc=LEGEND_LOC)
+
+    plt.title(TITLE)
+    plt.tight_layout()
+    plt.show()
+
+
+def decide_gpu_or_cpu():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print("Using device:", device)
+    return device
+
+
+def create_updater(net):
+    return torch.optim.SGD(net.parameters(), lr=0.05, momentum=0.9, weight_decay=1e-4)
+
+
+def create_loss():
+    return nn.CrossEntropyLoss(label_smoothing=0.1, reduction="mean")
+
+
+show_shape()
+device = decide_gpu_or_cpu()
+batch_size = 256
+train_iter, test_iter = d2l.load_data_fashion_mnist(batch_size=batch_size, resize=224)
+net = create_net().to(device)
+net.apply(init_net)
+updater = create_updater(net)
+loss = create_loss()
+epochs = 10
+
+with Timer("Training"):
+    # train and return record
+    train_losses, train_accs, test_losses, test_accs = train_whole(
+        epochs, net, updater, loss, train_iter, test_iter, device
+    )
+
+plot_training_curves_single_figure(train_losses, train_accs, test_losses, test_accs)
