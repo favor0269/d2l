@@ -1,4 +1,5 @@
 import os
+import copy
 import pandas as pd
 from PIL import Image
 import torch
@@ -99,7 +100,7 @@ transform = transforms.Compose(
         # contrast=0.2   → ±20% change
         # saturation=0.2 → ±20% change
         # hue=0.1        → ±0.1 change in hue
-        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
+        transforms.ColorJitter(brightness=0.2, contrast=0.1, saturation=0.1, hue=0.1),
         # Convert PIL Image or numpy array to PyTorch tensor
         # Output shape: [C, H, W], pixel values scaled to [0.0, 1.0]
         transforms.ToTensor(),
@@ -188,7 +189,7 @@ def create_net(num_classes):
         b5,
         nn.AdaptiveAvgPool2d((1, 1)),
         nn.Flatten(),
-        nn.Dropout(0.5),
+        nn.Dropout(0.2),
         nn.Linear(512, num_classes),
     )
     return net
@@ -254,7 +255,10 @@ def k_fold_train(dataset, k=5, epochs=10, batch_size=256, device=None):
     for fold, (train_idx, val_idx) in enumerate(kf.split(dataset)):
         print(f"--- Fold {fold+1}/{k} ---")
         train_subset = Subset(dataset, train_idx)
-        val_subset = Subset(dataset, val_idx)
+        # use lighter transforms for validation to avoid noisy estimates
+        val_dataset = copy.copy(dataset)
+        val_dataset.transform = test_transform
+        val_subset = Subset(val_dataset, val_idx)
         train_loader = DataLoader(
             train_subset, batch_size=batch_size, shuffle=True, num_workers=6
         )
@@ -305,7 +309,7 @@ def save_submission(
 with Timer("Training"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     fold_results, best_net = k_fold_train(
-        train_dataset, k=5, epochs=20, batch_size=256, device=device
+        train_dataset, k=3, epochs=20, batch_size=256, device=device
     )
     save_submission(
         best_net, test_dataset, train_dataset.le, device, save_path="submission.csv"
