@@ -4,33 +4,54 @@ from torch.utils import data
 from torch import nn
 
 
-def plot_curves(time, true_series, curves_dict, title="Time Series and Predictions"):
+def plot_curves(curves_dict, title="Time Series and Predictions"):
     """Plot original series and multiple predicted curves on the same figure.
-    
+
     Args:
-        time: time axis (numpy array or torch tensor)
-        true_series: original series (numpy array or torch tensor)
-        curves_dict: dict of {label: (x_time, y_values)} for prediction curves
+        curves_dict: dict with special keys:
+                     - "time": main time axis (required)
+                     - "original": original series (required)
+                     - other keys: (time, values) tuples or just values for prediction curves
         title: figure title
     """
     fig, ax = plt.subplots(figsize=(10, 4))
-    
+
+    time = curves_dict.pop("time", None)
+    true_series = curves_dict.pop("original", None)
+
+    if time is None or true_series is None:
+        raise ValueError("curves_dict must contain 'time' and 'original' keys")
+
     # convert to numpy if needed
     if isinstance(time, torch.Tensor):
         time = time.numpy()
     if isinstance(true_series, torch.Tensor):
         true_series = true_series.numpy()
-    
+
     ax.plot(time, true_series, label="Time Series", linewidth=2)
-    
+
     # plot all prediction curves
-    for label, (x, y) in curves_dict.items():
+    for label, data in curves_dict.items():
+        # check if data is tuple (x_time, y_values) or just y_values
+        if isinstance(data, (tuple, list)) and len(data) == 2:
+            x, y = data
+        else:
+            # just y_values, use main time axis
+            x = None
+            y = data
+
+        # convert to numpy if needed
         if isinstance(x, torch.Tensor):
             x = x.numpy()
         if isinstance(y, torch.Tensor):
-            y = y.numpy()
+            y = y.detach().cpu().numpy()
+
+        # use main time axis if x not provided
+        if x is None:
+            x = time[: len(y)]
+
         ax.plot(x, y, label=label, alpha=0.7)
-    
+
     ax.set_xlabel("Time")
     ax.set_ylabel("Value")
     ax.set_title(title)
@@ -103,6 +124,7 @@ def train_all(num_epochs, net, loss, updater, train_dataloader, test_dataloader)
         print(f"epoch {i+1}")
         print(f"train_loss: {train_loss:8.4f}, test_loss: {test_loss:8.4f}")
 
+
 def predict(net, features):
     net.eval()
     with torch.no_grad():
@@ -133,6 +155,7 @@ def k_step_predict_iterative(net, series, tau, k_step):
         return torch.empty(0)
     return torch.cat(preds)
 
+
 T = 1000
 time = torch.arange(0, T, dtype=torch.float32)
 x = torch.sin(0.01 * time) + torch.normal(0, 0.2, (T,))
@@ -148,9 +171,6 @@ for i in range(tau):
     features[:, i] = x[i : i + feature_len]
 labels = x[tau:].reshape((-1, 1))
 
-
-print(features.shape)
-print(labels.shape)
 
 batch_size = 32
 n_train = 600
@@ -178,14 +198,17 @@ predictions_all = k_step_predict_iterative(net, x, tau, k_step)
 time_slice_all = time[tau + k_step - 1 : tau + k_step - 1 + len(predictions_all)]
 
 # 2) Optional autoregressive demo: roll forward from training end using model outputs
-curves_dict = {}
+curves_dict = {
+    "time": time,
+    "original": x,
+}
 curves_dict[f"{k_step}-step iterative prediction (all)"] = (
-    time_slice_all.numpy(),
-    predictions_all.detach().cpu().numpy(),
+    time_slice_all,
+    predictions_all,
 )
 
 MULTI_STEP_DEMO = True
-FUTURE_STEPS = 30  # how many points to roll out
+FUTURE_STEPS = 50  # how many points to roll out
 if MULTI_STEP_DEMO:
     start_idx = n_train
     steps = T - (start_idx + tau)
@@ -197,9 +220,9 @@ if MULTI_STEP_DEMO:
 
     future_time = time[start_idx + tau : start_idx + tau + steps]
     curves_dict[f"autoregressive roll-out (from {start_idx}, k={k_step})"] = (
-        future_time.numpy(),
-        multistep_preds[tau:].detach().cpu().numpy(),
+        future_time,
+        multistep_preds[tau:],
     )
 
 # Plot all curves at the end
-plot_curves(time.numpy(), x.numpy(), curves_dict, title="Time Series and Predictions")
+plot_curves(curves_dict, title="Time Series and Predictions")
