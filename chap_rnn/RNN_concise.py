@@ -11,10 +11,10 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-import seq_dataset
-import text_preprocess
+from . import seq_dataset
+from . import text_preprocess
 from mytools import mytools
-import RNN
+from . import RNN
 
 
 class RNNModel(nn.Module):
@@ -78,16 +78,21 @@ class RNNModel(nn.Module):
             )
 
 
-batch_size, num_steps = 32, 35
-train_iter, vocab = seq_dataset.load_data_time_machine(batch_size, num_steps)
-num_hiddens = 256
+def main():
+    batch_size, num_steps = 32, 35
+    train_iter, vocab = seq_dataset.load_data_time_machine(batch_size, num_steps)
+    num_hiddens = 256
 
-device = mytools.decide_gpu_or_cpu()
-rnn_layer = nn.RNN(len(vocab), num_hiddens).to(device)
-net = RNNModel(rnn_layer, vocab_size=len(vocab)).to(device)
+    device = mytools.decide_gpu_or_cpu()
+    rnn_layer = nn.RNN(len(vocab), num_hiddens).to(device)
+    net = RNNModel(rnn_layer, vocab_size=len(vocab)).to(device)
 
-num_epochs = 500
-lr = 1
-total_perplexities = RNN.train_all(net, train_iter, vocab, lr, num_epochs, device)
+    num_epochs = 500
+    lr = 1
+    total_perplexities = RNN.train_all(net, train_iter, vocab, lr, num_epochs, device)
 
-mytools.plot_lines(total_perplexities)
+    mytools.plot_lines(total_perplexities)
+
+
+if __name__ == "__main__":
+    main()

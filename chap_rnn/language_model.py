@@ -1,4 +1,4 @@
-import text_preprocess
+from . import text_preprocess
 import torch
 import random
 import matplotlib.pyplot as plt
