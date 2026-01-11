@@ -2,6 +2,7 @@ import time
 import torch
 import numpy
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 
 class TimedBlock:
 
@@ -86,9 +87,15 @@ def plot_lines(
     yscale="linear",
     xlim=None,
     ylim=None,
-    figsize=(6, 4),
+    figsize=(18, 12),
     grid=True,
     save_path=None,
+    linewidth=2.0,
+    title_size=16,
+    label_size=14,
+    tick_size=12,
+    max_xticks=None,
+    max_yticks=None,
 ):
     """Plot one or many curves on the same axes with optional axis settings."""
 
@@ -108,25 +115,31 @@ def plot_lines(
         if not isinstance(x, (list, tuple)) or (x and not isinstance(x[0], (list, tuple))):
             x_list = [x] * len(y_list)
 
+    ax = plt.gca()
     for xs, ys in zip(x_list, y_list):
-        plt.plot(xs, ys)
+        ax.plot(xs, ys, linewidth=linewidth)
 
     if xlabel:
-        plt.xlabel(xlabel)
+        ax.set_xlabel(xlabel, fontsize=label_size)
     if ylabel:
-        plt.ylabel(ylabel)
+        ax.set_ylabel(ylabel, fontsize=label_size)
     if title:
-        plt.title(title)
-    plt.xscale(xscale)
-    plt.yscale(yscale)
+        ax.set_title(title, fontsize=title_size)
+    ax.set_xscale(xscale)
+    ax.set_yscale(yscale)
     if xlim:
-        plt.xlim(xlim)
+        ax.set_xlim(xlim)
     if ylim:
-        plt.ylim(ylim)
+        ax.set_ylim(ylim)
     if legend:
-        plt.legend(legend)
+        ax.legend(legend)
+    ax.tick_params(axis="both", labelsize=tick_size)
+    if max_xticks:
+        ax.xaxis.set_major_locator(MaxNLocator(nbins=max_xticks))
+    if max_yticks:
+        ax.yaxis.set_major_locator(MaxNLocator(nbins=max_yticks))
     if grid:
-        plt.grid(True, which="both", linestyle="--", alpha=0.4)
+        ax.grid(True, which="both", linestyle="--", alpha=0.4)
     plt.tight_layout()
 
     if save_path:
