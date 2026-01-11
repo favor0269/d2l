@@ -1,0 +1,7 @@
+*.jpg
+*.jpeg
+*.csv
+test_*.py
+*.Zone.Identifier
+/data/
+/sundry/
