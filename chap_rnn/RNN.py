@@ -15,6 +15,7 @@ import seq_dataset
 import text_preprocess
 from mytools import mytools
 
+
 # =====================nn.RNN scratch=========================
 def get_params(vocab_size, num_hiddens, device):
 
@@ -51,6 +52,7 @@ def rnn(inputs, state, params):
 
     return torch.cat(outputs, dim=0), (H,)
 
+
 # ============================================================
 class RNNModelScratch:
 
@@ -75,7 +77,9 @@ def predict(prefix, num_preds, net, vocab, device):
     state = net.begin_state(batch_size=1, device=device)
     outputs = [vocab[prefix[0]]]  # indices list
     # get_input only take last output, because we have H_t
-    get_input = lambda: torch.tensor([outputs[-1]], device=device).reshape((1, 1))  # (1,1)
+    get_input = lambda: torch.tensor([outputs[-1]], device=device).reshape(
+        (1, 1)
+    )  # (1,1)
     for y in prefix[1:]:
         _, state = net(get_input(), state)
         outputs.append(vocab[y])
@@ -155,7 +159,7 @@ def train_epoch(net, train_iter, loss, updater, device, use_random_iter):
 
 def train_all(net, train_iter, vocab, lr, num_epochs, device, use_random_iter=False):
     total_perplexities = []
-    
+
     loss = nn.CrossEntropyLoss()
     if isinstance(net, nn.Module):
         updater = torch.optim.SGD(net.parameters(), lr)
@@ -170,14 +174,14 @@ def train_all(net, train_iter, vocab, lr, num_epochs, device, use_random_iter=Fa
             net, train_iter, loss, updater, device, use_random_iter
         )
         total_perplexities.append(ppl)
-        print(f"epoch {epoch+1:4d}, ppl: {ppl:3.4f}")
         if (epoch + 1) % 10 == 0:
+            print(f"epoch {epoch+1:4d}, ppl: {ppl:3.4f}")
             print(predict_prefix("time traveller"))
-            
+
     print(f"perplexity {ppl:.1f}, {speed:.1f} corpus/s {str(device)}")
     print(predict_prefix("time traveller"))
     print(predict_prefix("traveller"))
-    
+
     return total_perplexities
 
 
