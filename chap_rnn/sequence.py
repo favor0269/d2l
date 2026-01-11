@@ -208,7 +208,7 @@ curves_dict[f"{k_step}-step iterative prediction (all)"] = (
 )
 
 MULTI_STEP_DEMO = True
-FUTURE_STEPS = 50  # how many points to roll out
+FUTURE_STEPS = 100  # how many points to roll out
 if MULTI_STEP_DEMO:
     start_idx = n_train
     steps = T - (start_idx + tau)

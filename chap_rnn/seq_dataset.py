@@ -55,9 +55,12 @@ class SeqDataLoader:
             self.data_iter_fn = seq_data_iter_sequential
         self.corpus, self.vocab = text_preprocess.load_corpus_time_machine(max_tokens)
         self.batch_size, self.num_steps = batch_size, num_steps
-        
+    
+    
+    # very important
+    # it will return a new dataiter when for begin, so it guarantee randomness
     def __iter__(self):
-        self.data_iter_fn(self.corpus, self.batch_size, self.num_steps)
+        return self.data_iter_fn(self.corpus, self.batch_size, self.num_steps)
         
 
 def load_data_time_machine(batch_size, num_steps, use_random_iter=False, max_tokens=10000):
