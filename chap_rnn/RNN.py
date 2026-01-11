@@ -157,7 +157,17 @@ def train_epoch(net, train_iter, loss, updater, device, use_random_iter):
     return math.exp(metric[0] / metric[1]), metric[1] / timer.stop()
 
 
-def train_all(net, train_iter, vocab, lr, num_epochs, device, use_random_iter=False):
+def train_all(
+    net,
+    train_iter,
+    vocab,
+    lr,
+    num_epochs,
+    device,
+    use_random_iter=False,
+    predict_prefix_text="time traveller",
+    num_preds=50,
+):
     total_perplexities = []
 
     loss = nn.CrossEntropyLoss()
@@ -166,8 +176,9 @@ def train_all(net, train_iter, vocab, lr, num_epochs, device, use_random_iter=Fa
     else:
         updater = lambda batch_size: d2l.sgd(net.params, lr, batch_size)
 
-    def predict_prefix(prefix, num_preds=50):
-        return predict(prefix, num_preds, net, vocab, device)
+    def predict_prefix_local(num_preds_override=None):
+        n = num_preds if num_preds_override is None else num_preds_override
+        return predict(predict_prefix_text, n, net, vocab, device)
 
     for epoch in range(num_epochs):
         ppl, speed = train_epoch(
@@ -176,11 +187,11 @@ def train_all(net, train_iter, vocab, lr, num_epochs, device, use_random_iter=Fa
         total_perplexities.append(ppl)
         if (epoch + 1) % 10 == 0:
             print(f"epoch {epoch+1:4d}, ppl: {ppl:3.4f}")
-            print(predict_prefix("time traveller"))
+            print(predict_prefix_local())
 
     print(f"perplexity {ppl:.1f}, {speed:.1f} corpus/s {str(device)}")
-    print(predict_prefix("time traveller"))
-    print(predict_prefix("traveller"))
+    print(predict_prefix_local())
+    print(predict_prefix_local())
 
     return total_perplexities
 
