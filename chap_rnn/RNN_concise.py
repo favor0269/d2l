@@ -57,7 +57,7 @@ class RNNModel(nn.Module):
                 device=device,
             )
         else:
-            # nn.LSTM regards tuple as hidden states
+            # nn.LSTM regards tuple as hidden states (H, C)
             return (
                 torch.zeros(
                     (

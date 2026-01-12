@@ -64,7 +64,7 @@ def main():
 
 	device = mytools.decide_gpu_or_cpu()
 	num_hiddens = 256
-	gru_layer = nn.GRU(len(vocab), num_hiddens)
+	gru_layer = nn.GRU(len(vocab), num_hiddens, 2)
 	net = RNN_concise.RNNModel(gru_layer, len(vocab)).to(device)
 
 	num_epochs, lr = 200, 1
@@ -76,7 +76,7 @@ def main():
 		num_epochs,
 		device,
 		use_random_iter=False,
-		predict_prefix_text="君不见",
+		predict_prefix_text="黄河",
 		num_preds=80,
 	)
 	mytools.plot_lines(total_perplexities, xlabel="epoch", ylabel="perplexity", title="Li Bai GRU")
