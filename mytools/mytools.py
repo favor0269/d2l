@@ -87,7 +87,7 @@ def plot_lines(
     yscale="linear",
     xlim=None,
     ylim=None,
-    figsize=(18, 12),
+    figsize=(6, 4),
     grid=True,
     save_path=None,
     linewidth=2.0,
