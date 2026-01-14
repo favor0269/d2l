@@ -133,6 +133,10 @@ def test():
 
 def train_seq2seq(net, data_iter, lr, num_epochs, tgt_vocab, device):
 
+    # Encoder:
+    # input: source sentence
+    # output: 
+    
     def xavier_init_weights(m):
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
