@@ -106,7 +106,16 @@ def load_data_nmt(batch_size, num_steps, num_examples=600):
     )
     src_array, src_valid_len = build_array_nmt(source, src_vocab, num_steps)
     tgt_array, tgt_valid_len = build_array_nmt(target, tgt_vocab, num_steps)
-    # pack tensors into a dataset and loader
+    # Tensors before batching:
+    #   src_array: (num_samples, num_steps) int64
+    #   src_valid_len: (num_samples,) float32
+    #   tgt_array: (num_samples, num_steps) int64
+    #   tgt_valid_len: (num_samples,) float32
+    # After DataLoader batching:
+    #   X: (batch_size, num_steps)
+    #   X_valid_len: (batch_size,)
+    #   Y: (batch_size, num_steps)
+    #   Y_valid_len: (batch_size,)
     dataset = TensorDataset(src_array, src_valid_len, tgt_array, tgt_valid_len)
     data_iter = DataLoader(dataset, batch_size, shuffle=True)
     return data_iter, src_vocab, tgt_vocab
