@@ -2,13 +2,25 @@ import collections
 import math
 import torch
 from torch import nn
-import encoder_and_decoder
-from d2l import torch as d2l
-import translation_and_dataset
 
 import os
 import sys
-from chap_rnn import RNN
+
+# Ensure project root is on sys.path when run as a script
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+try:  # package import
+    from . import encoder_and_decoder  # type: ignore
+    from . import translation_and_dataset  # type: ignore
+    from chap_rnn import RNN  # type: ignore
+except ImportError:  # script import
+    import encoder_and_decoder
+    import translation_and_dataset
+    from chap_rnn import RNN
+
+from d2l import torch as d2l
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
@@ -26,9 +38,11 @@ class Seq2SeqEncoder(encoder_and_decoder.Encoder):
         self.rnn = nn.GRU(embed_size, num_hiddens, num_layers, dropout=dropout)
 
     def forward(self, X, *args):
-        X = self.embedding(X)
-        X = X.permute(1, 0, 2)
+        X = self.embedding(X)  # (batch_size, num_steps, embed_size)
+        X = X.permute(1, 0, 2)  # -> (num_steps, batch_size, embed_size)
         output, state = self.rnn(X)
+        # output shape (num_steps, batch_size, num_hiddens)
+        # state (num_layers, batch_size, num_hiddens)
         return output, state
 
 
@@ -135,8 +149,8 @@ def train_seq2seq(net, data_iter, lr, num_epochs, tgt_vocab, device):
 
     # Encoder:
     # input: source sentence
-    # output: 
-    
+    # output:
+
     def xavier_init_weights(m):
         if isinstance(m, nn.Linear):
             nn.init.xavier_uniform_(m.weight)
@@ -259,7 +273,7 @@ def main():
     mytools.plot_lines(plot_data)
 
     engs = ["go .", "i lost .", "he's calm .", "i'm home ."]
-    fras = ["va !", "j'ai perdu .", "il est calme .", "je suis chez moi ."]
+    fras = ["va !", "j\'ai perdu .", "il est calme .", "je suis chez moi ."]
     for eng, fra in zip(engs, fras):
         translation, attention_weight_seq = predict_seq2seq(
             net, eng, src_vocab, tgt_vocab, num_steps, device
