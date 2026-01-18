@@ -85,12 +85,12 @@ class MultiHeadAttention(nn.Module):
         self.W_o = nn.Linear(num_hiddens, num_hiddens, bias=bias)
 
     def forward(self, queries, keys, values, valid_lens):
-        # For parallel computing
+        # Project and split into heads: (B, T, H) -> (B*num_heads, T, H/heads)
         queries = transpose_qkv(self.W_q(queries), self.num_heads)
         keys = transpose_qkv(self.W_k(keys), self.num_heads)
         values = transpose_qkv(self.W_v(values), self.num_heads)
 
-        # regardless 1D or 2D, repeat num_heads times
+        # Broadcast valid_lens to each head (works for 1D or 2D inputs)
         if valid_lens is not None:
             valid_lens = torch.repeat_interleave(
                 valid_lens, repeats=self.num_heads, dim=0
@@ -98,6 +98,7 @@ class MultiHeadAttention(nn.Module):
 
         output = self.attention(queries, keys, values, valid_lens)
 
+        # Merge heads back: (B*num_heads, T, H/heads) -> (B, T, H)
         output_concat = transpose_output(output, self.num_heads)
         return self.W_o(output_concat)
 

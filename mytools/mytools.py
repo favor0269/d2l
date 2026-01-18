@@ -1,4 +1,5 @@
 import time
+import math
 import torch
 import numpy
 import matplotlib.pyplot as plt
@@ -142,6 +143,100 @@ def plot_lines(
         ax.grid(True, which="both", linestyle="--", alpha=0.4)
     plt.tight_layout()
 
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+
+def plot_heatmap(
+    matrix,
+    xlabel="Column",
+    ylabel="Row",
+    title="Heatmap",
+    cmap="viridis",
+    figsize=(8, 4),
+    colorbar_label="Value",
+    aspect="auto",
+    save_path=None,
+):
+    """Plot a 2D heatmap from a numpy or torch array."""
+    data = matrix.detach().cpu().numpy() if torch.is_tensor(matrix) else matrix
+    # If attention has extra dims (e.g., batch, heads), average them out
+    if data.ndim > 2:
+        reduce_axes = tuple(range(data.ndim - 2))
+        data = data.mean(axis=reduce_axes)
+    plt.figure(figsize=figsize)
+    im = plt.imshow(data, cmap=cmap, aspect=aspect)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
+    cbar = plt.colorbar(im)
+    cbar.set_label(colorbar_label)
+    plt.tight_layout()
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+
+
+def plot_heatmaps_grid(
+    matrix,
+    max_images=8,
+    cols=4,
+    xlabel="Column",
+    ylabel="Row",
+    title_prefix="Heatmap",
+    cmap="viridis",
+    figsize=(10, 6),
+    colorbar_label="Value",
+    aspect="auto",
+    save_path=None,
+):
+    """Plot multiple 2D heatmaps from higher-rank attention tensors.
+
+    - matrix: tensor/array, e.g. (batch, heads, q_len, k_len)
+    - max_images: number of slices to plot
+    - cols: columns in the grid
+    """
+
+    data = matrix.detach().cpu().numpy() if torch.is_tensor(matrix) else matrix
+    if data.ndim < 2:
+        raise ValueError("matrix must have at least 2 dimensions")
+
+    # Flatten leading dims into a list of 2D maps
+    if data.ndim > 2:
+        maps = data.reshape(-1, data.shape[-2], data.shape[-1])
+    else:
+        maps = data[None, ...]
+
+    n = min(max_images, maps.shape[0])
+    rows = int(math.ceil(n / cols))
+    fig, axes = plt.subplots(rows, cols, figsize=figsize)
+    axes = numpy.array(axes).reshape(rows, cols)
+
+    last_im = None
+    for idx in range(rows * cols):
+        ax = axes.flat[idx]
+        if idx < n:
+            last_im = ax.imshow(maps[idx], cmap=cmap, aspect=aspect)
+            ax.set_title(f"{title_prefix} {idx}")
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel(ylabel)
+        else:
+            ax.axis("off")
+
+    if last_im is not None:
+        fig.colorbar(
+            last_im,
+            ax=axes.ravel().tolist(),
+            shrink=0.7,
+            pad=0.02,
+            label=colorbar_label,
+            location="right",
+        )
+    # Avoid tight_layout warnings with colorbar; adjust spacing manually
+    fig.subplots_adjust(wspace=0.4, hspace=0.5, right=0.9)
     if save_path:
         plt.savefig(save_path)
     else:

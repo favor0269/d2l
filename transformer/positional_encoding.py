@@ -78,7 +78,7 @@ def plot_positional_encoding(P):
     plt.show()
     
     
-test1()
+
 # pe shape = (max_len, 8)
 
 # |   0        |   1        |   2           |   3           |   4              |   5              |   6                 |   7                 |
